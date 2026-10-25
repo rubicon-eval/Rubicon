@@ -1,0 +1,367 @@
+{% extends "base.html" %}
+{% block title %}{{ puzzle_dir }} — Puzzle Verifier{% endblock %}
+
+{% block nav_extra %}
+<div class="nav-links">
+  {% if prev_puzzle %}<a href="{{ url_for('puzzle_detail', puzzle_dir=prev_puzzle) }}">Prev</a>{% endif %}
+  {% if next_puzzle %}<a href="{{ url_for('puzzle_detail', puzzle_dir=next_puzzle) }}">Next</a>{% endif %}
+  {% if next_pending %}<a href="{{ url_for('puzzle_detail', puzzle_dir=next_pending) }}" class="nav-pending">Next Pending</a>{% endif %}
+  <a href="{{ url_for('dashboard') }}">Dashboard</a>
+</div>
+{% endblock %}
+
+{% block content %}
+{# ── Overview ────────────────────────────────────────────── #}
+<div class="overview-card">
+  <div class="overview-image">
+    <img src="{{ url_for('dataset_image', filepath=puzzle_dir + '/images/initial.png') }}" alt="Initial State">
+  </div>
+  <div class="overview-info">
+    <div class="overview-title">
+      <h1>{{ puzzle_dir }}</h1>
+      <span class="badge badge-{{ val.get('status', 'pending') }}">{{ val.get('status', 'pending') }}</span>
+    </div>
+    <div class="overview-pills">
+      {% if metadata.get('template_name') %}<span class="pill">{{ metadata.template_name }}</span>{% endif %}
+      {% if metadata.get('grid_size') %}<span class="pill">{{ metadata.grid_size }}</span>{% endif %}
+      {% if metadata.get('solution_length') %}<span class="pill">{{ metadata.solution_length }} steps</span>{% endif %}
+      {% if metadata.get('num_keys') %}<span class="pill">{{ metadata.num_keys }} key{{ 's' if metadata.num_keys != 1 }}</span>{% endif %}
+      {% if metadata.get('num_doors') %}<span class="pill">{{ metadata.num_doors }} door{{ 's' if metadata.num_doors != 1 }}</span>{% endif %}
+      {% if metadata.get('num_plates') %}<span class="pill">{{ metadata.num_plates }} plate{{ 's' if metadata.num_plates != 1 }}</span>{% endif %}
+      {% if metadata.get('num_beacons') is not none %}<span class="pill">{{ metadata.num_beacons }} beacon{{ 's' if metadata.num_beacons != 1 }}</span>{% endif %}
+      {% if metadata.get('num_zones') is not none %}<span class="pill">{{ metadata.num_zones }} zone{{ 's' if metadata.num_zones != 1 }}</span>{% endif %}
+      {% if metadata.get('initial_oxygen') is not none %}<span class="pill pill-oxygen">O&#8322; {{ metadata.initial_oxygen }}</span>{% endif %}
+      <span class="pill pill-muted">{{ num_items }} eval items</span>
+    </div>
+
+    {# ── Tidal zone details (tide_grid only) ── #}
+    {% if metadata.get('tidal_zones') %}
+    <div class="tidal-zones-panel">
+      <div class="tidal-zones-title">Tidal Zones</div>
+      <div class="tidal-zones-grid">
+        {% for zone_id, z in metadata.tidal_zones.items() | sort %}
+        {# Compute: current phase position and steps until next transition #}
+        {% set _cur_phase = z.phase_offset % z.cycle_length %}
+        {% if z.initial_state == 'dry' %}
+          {% set _until_change = z.dry_duration - _cur_phase %}
+          {% set _next_label = "floods in " ~ _until_change ~ "t" %}
+        {% else %}
+          {% set _until_change = z.cycle_length - _cur_phase %}
+          {% set _next_label = "dries in " ~ _until_change ~ "t" %}
+        {% endif %}
+        {# Timeline: show 2 full cycles (capped at 16 steps) #}
+        {% set _n_show = [z.cycle_length * 2, 16] | min %}
+        <div class="tidal-zone-card tidal-zone-{{ z.initial_state }}">
+          <div class="tz-header">
+            <span class="tz-id">Zone {{ zone_id }}</span>
+            <span class="tz-state tz-state-{{ z.initial_state }}">{{ z.initial_state }}</span>
+            <span class="tz-next-change">{{ _next_label }}</span>
+          </div>
+          <div class="tz-params">
+            <div class="tz-param">
+              <span class="tz-param-label">Cycle</span>
+              <span class="tz-param-val">{{ z.cycle_length }}t</span>
+              <span class="tz-param-sub">({{ z.dry_duration }}d + {{ z.flood_duration }}f)</span>
+            </div>
+            <div class="tz-param">
+              <span class="tz-param-label">Phase offset</span>
+              <span class="tz-param-val">{{ z.phase_offset }}</span>
+            </div>
+            <div class="tz-param">
+              <span class="tz-param-label">Tiles</span>
+              <span class="tz-param-val">{{ z.num_tiles }}</span>
+            </div>
+          </div>
+          {# Step-by-step pattern strip #}
+          <div class="tz-timeline" title="State at each step (t=0 is start)">
+            {% for t in range(_n_show) %}
+              {% set _phase = (t + z.phase_offset) % z.cycle_length %}
+              {% set _dry = _phase < z.dry_duration %}
+              <span class="tz-tick tz-tick-{{ 'dry' if _dry else 'flood' }}{% if t == 0 %} tz-tick-now{% endif %}" title="t={{ t }}: {{ 'dry' if _dry else 'flooded' }}"></span>
+            {% endfor %}
+            {% if z.cycle_length * 2 > 16 %}<span class="tz-tick-ellipsis">…</span>{% endif %}
+          </div>
+          <div class="tz-timeline-legend"><span class="tz-legend-now">t=0</span> = start · each block = 1 step</div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+
+    {# ── Eval item breakdown by RQ ── #}
+    <div class="breakdown">
+      {% for rq in organized | sort %}
+      {% set vars = organized[rq] %}
+      {% set rq_total = namespace(n=0) %}
+      {% for v in vars.values() %}{% for g in v.values() %}{% set rq_total.n = rq_total.n + g|length %}{% endfor %}{% endfor %}
+      <div class="breakdown-row breakdown-{{ rq }}">
+        <span class="breakdown-rq-label">{{ rq | upper }}<span class="breakdown-rq-total">{{ rq_total.n }}</span></span>
+        <div class="breakdown-chips">
+          {% for variant in vars | sort_variants %}
+            {% set n = namespace(count=0) %}
+            {% for g in vars[variant].values() %}{% set n.count = n.count + g|length %}{% endfor %}
+            <span class="breakdown-chip {{ 'breakdown-chip-hard' if variant is hard_variant }}">
+              {{ variant | replace('_', ' ') }}
+              <span class="breakdown-count">{{ n.count }}</span>
+            </span>
+          {% endfor %}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+
+    <details class="meta-details">
+      <summary>All metadata</summary>
+      <div class="meta-grid">
+        {% for key, value in metadata.items() %}
+        <div class="meta-item"><span class="meta-key">{{ key }}</span> <span class="meta-val">{{ value }}</span></div>
+        {% endfor %}
+      </div>
+    </details>
+  </div>
+</div>
+
+{# ── Solution Trace ───────────────────────────────────────── #}
+{% if 'solution_trace.png' in images.all %}
+<section class="solution-trace-section">
+  <div class="solution-trace-header collapsible" data-target="solution-trace">
+    <span class="solution-trace-title">Solution Trace</span>
+    {% if metadata.get('solution_length') is not none %}
+    <span class="solution-trace-len">{{ metadata.solution_length }} steps</span>
+    {% endif %}
+    <span class="toggle-icon">&#9660;</span>
+  </div>
+  <div id="solution-trace" class="solution-trace-body">
+    <img src="{{ url_for('dataset_image', filepath=puzzle_dir ~ '/images/solution_trace.png') }}"
+         alt="Solution trace" class="solution-trace-img">
+  </div>
+</section>
+{% endif %}
+
+{# ── RQ sections ─────────────────────────────────────────── #}
+{% set rq_descriptions = {
+  'rq1': 'State Simulation — Can the model track game state after moves?',
+  'rq2': 'Foresight — Can the model tell solvable from deadlocked?',
+  'rq3': 'Causal Attribution — Which step caused the irreversible failure?',
+} %}
+{% set rq_colors = {'rq1': 'blue', 'rq2': 'amber', 'rq3': 'rose'} %}
+
+{% for rq in organized | sort %}
+{% set variants = organized[rq] %}
+{% set rq_count = namespace(n=0) %}
+{% for v in variants.values() %}{% for g in v.values() %}{% set rq_count.n = rq_count.n + g|length %}{% endfor %}{% endfor %}
+{% set color = rq_colors.get(rq, 'blue') %}
+
+<section class="rq-section rq-{{ color }}">
+  <div class="rq-header collapsible" data-target="rq-{{ rq }}">
+    <div>
+      <h2>{{ rq | upper }}
+        <span class="rq-desc">{{ rq_descriptions.get(rq, '') }}</span>
+      </h2>
+    </div>
+    <span class="rq-count">{{ rq_count.n }} <span class="toggle-icon">&#9660;</span></span>
+  </div>
+
+  <div id="rq-{{ rq }}" class="rq-body">
+    {# Detect whether this RQ has both standard and hard variants #}
+    {% set has_hard = namespace(v=false) %}
+    {% set has_std = namespace(v=false) %}
+    {% for v in variants %}
+      {% if v is hard_variant %}{% set has_hard.v = true %}{% else %}{% set has_std.v = true %}{% endif %}
+    {% endfor %}
+    {% set shown_std_header = namespace(v=false) %}
+    {% set shown_hard_header = namespace(v=false) %}
+
+    {% for variant in variants | sort_variants %}
+    {% set groups = variants[variant] %}
+
+    {# Tier headers: show when crossing the standard→hard boundary #}
+    {% if not (variant is hard_variant) and not shown_std_header.v and has_hard.v %}
+    <div class="tier-divider tier-standard">
+      <span class="tier-label">Standard</span>
+    </div>
+    {% set shown_std_header.v = true %}
+    {% endif %}
+    {% if variant is hard_variant and not shown_hard_header.v %}
+    <div class="tier-divider tier-hard">
+      <span class="tier-label">Hard — Oracle-Adjacent</span>
+    </div>
+    {% set shown_hard_header.v = true %}
+    {% endif %}
+
+    <div class="variant-divider">
+      <span class="variant-tag {{ 'variant-hard' if variant is hard_variant else ('variant-ablation' if 'ablation' in variant else 'variant-main') }}">{{ variant | replace('_', ' ') }}</span>
+    </div>
+
+    {% for group_key in groups | sort %}
+    {% set group_items = groups[group_key] %}
+    {% if group_key != 'all' %}
+    {% set sample = group_items[0].metadata %}
+    {% set sub_type = sample.get('sub_type', '') %}
+    {% set is_baseline = ':' in group_key %}
+
+    {# Extract index from key — after '=' in "...key=N" or "sub_type:key=N" #}
+    {% set gk_idx = group_key.split('=')[-1] if '=' in group_key else '' %}
+
+    <div class="group-banner {{ 'group-banner-baseline' if is_baseline }}">
+      {% if is_baseline and 'rq2_baseline' in sub_type %}
+        {# RQ1 baseline for RQ2 — state sim feeding into foresight #}
+        {% set is_hard_baseline = sub_type.startswith('hard_') %}
+        {% set path = 'Deadlock' if 'deadlock' in sub_type else 'Solvable' %}
+        <span class="group-banner-label">RQ2 Baseline</span>
+        {% if is_hard_baseline %}<span class="group-banner-tag group-banner-tag-hard">Hard</span>{% endif %}
+        <span class="group-banner-tag group-banner-tag-{{ 'dead' if 'deadlock' in sub_type else 'safe' }}">{{ path }} Path</span>
+        {% if gk_idx %}<span class="group-banner-idx">Scenario #{{ gk_idx }}</span>{% endif %}
+        <span class="group-banner-detail">simulate {{ sample.trajectory_length }} steps</span>
+
+      {% elif is_baseline and 'rq3_baseline' in sub_type %}
+        {# RQ1 baseline for RQ3 — state sim feeding into causal attribution #}
+        {% set is_hard_baseline = sub_type.startswith('hard_') %}
+        <span class="group-banner-label">RQ3 Baseline</span>
+        {% if is_hard_baseline %}<span class="group-banner-tag group-banner-tag-hard">Hard</span>{% endif %}
+        <span class="group-banner-tag group-banner-tag-trace">Fatal Trace</span>
+        {% if gk_idx %}<span class="group-banner-idx">Trace #{{ gk_idx }}</span>{% endif %}
+        <span class="group-banner-detail">simulate {{ sample.trajectory_length }} steps</span>
+
+      {% elif 'rq2_pair_index' in sample %}
+        {# RQ2 proper — foresight scenario #}
+        <span class="group-banner-label">Scenario</span>
+        <span class="group-banner-idx">#{{ gk_idx }}</span>
+        {% if variant is hard_variant %}
+        <span class="group-banner-tag group-banner-tag-hard">Hard</span>
+        {% else %}
+        <span class="group-banner-tag group-banner-tag-std">Standard</span>
+        {% endif %}
+        <span class="group-banner-detail">{{ sample.actions | length }} moves, k_horizon={{ sample.k_horizon }}{% if sample.prefix_length is defined %}, prefix={{ sample.prefix_length }}{% endif %}</span>
+        {% if sample.get('oracle_prefix_length') is not none %}
+        <span class="group-banner-detail">oracle prefix={{ sample.oracle_prefix_length }}</span>
+        {% endif %}
+
+      {% elif 'rq3_trace_index' in sample %}
+        {# RQ3 proper — causal trace #}
+        <span class="group-banner-label">Trace</span>
+        <span class="group-banner-idx">#{{ gk_idx }}</span>
+        {% if variant is hard_variant %}
+        <span class="group-banner-tag group-banner-tag-hard">Hard</span>
+        {% else %}
+        <span class="group-banner-tag group-banner-tag-std">Standard</span>
+        {% endif %}
+        <span class="group-banner-detail">{{ sample.trace_length }} steps, gap={{ sample.cause_symptom_gap }}</span>
+        {% if sample.get('oracle_prefix_length') is not none %}
+        <span class="group-banner-detail">oracle prefix={{ sample.oracle_prefix_length }}</span>
+        {% endif %}
+
+      {% else %}
+        <span class="group-banner-label">Group</span>
+        {% if gk_idx %}<span class="group-banner-idx">#{{ gk_idx }}</span>{% endif %}
+      {% endif %}
+    </div>
+    {% endif %}
+
+    {% for item in group_items %}
+    {% set desc = item | describe %}
+    {% set item_img = item.image_path | replace(puzzle_dir + '/', '') %}
+    <div class="item-row">
+      <button class="star-btn {{ 'starred' if item.eval_id in starred }}"
+              data-puzzle="{{ puzzle_dir }}" data-eval-id="{{ item.eval_id }}"
+              title="Star this item">&#9733;</button>
+      <div class="item-thumb">
+        <img src="{{ url_for('dataset_image', filepath=item.image_path) }}" alt="{{ item_img }}" loading="lazy">
+      </div>
+      <div class="item-content">
+        <div class="item-top-line">
+          <span class="item-label">{{ desc.label }}</span>
+          <span class="item-answer">{{ desc.answer }}</span>
+        </div>
+        <div class="prompt-wrap">
+          <button class="copy-btn" title="Copy prompt" onclick="copyPrompt(this); event.stopPropagation();">Copy</button>
+          <div class="prompt-text collapsed" onclick="this.classList.toggle('collapsed')">{{ item.prompt }}</div>
+        </div>
+        <details class="gt-details">
+          <summary>Ground truth JSON</summary>
+          <pre class="gt-json">{{ item.ground_truth | tojson(indent=2) }}</pre>
+        </details>
+      </div>
+    </div>
+    {% endfor %}
+    {% endfor %}
+    {% endfor %}
+  </div>
+</section>
+{% endfor %}
+
+<div style="height: 140px;"></div>
+
+{# ── Validation bar ──────────────────────────────────────── #}
+<form class="validation-bar" method="POST" action="{{ url_for('validate_puzzle', puzzle_dir=puzzle_dir) }}">
+  <div class="val-group">
+    <label class="radio-label">
+      <input type="radio" name="status" value="validated" {{ 'checked' if val.get('status') == 'validated' }}>
+      <span class="radio-text approve">Approve</span>
+    </label>
+    <label class="radio-label">
+      <input type="radio" name="status" value="rejected" {{ 'checked' if val.get('status') == 'rejected' }}>
+      <span class="radio-text reject">Reject</span>
+    </label>
+  </div>
+  <div class="val-group">
+    <label for="difficulty">Difficulty</label>
+    <select name="difficulty" id="difficulty">
+      <option value="">—</option>
+      {% for d in range(1, 6) %}
+      <option value="{{ d }}" {{ 'selected' if val.get('difficulty') == d }}>{{ d }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="val-group val-notes">
+    <textarea name="notes" id="notes" rows="1" placeholder="Notes (optional)">{{ val.get('notes', '') }}</textarea>
+  </div>
+  <div class="val-group val-buttons">
+    <button type="submit" name="action" value="save" class="btn btn-save">Save</button>
+    <button type="submit" name="action" value="save_next" class="btn btn-next">Save &amp; Next</button>
+  </div>
+</form>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.querySelectorAll('.collapsible').forEach(header => {
+  header.addEventListener('click', () => {
+    const target = document.getElementById(header.dataset.target);
+    if (target) {
+      target.classList.toggle('collapsed-section');
+      header.querySelector('.toggle-icon').textContent =
+        target.classList.contains('collapsed-section') ? '\u25B6' : '\u25BC';
+    }
+  });
+});
+function copyPrompt(btn) {
+  const text = btn.nextElementSibling.textContent;
+  navigator.clipboard.writeText(text).then(() => {
+    btn.textContent = 'Copied!';
+    btn.classList.add('copied');
+    setTimeout(() => { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 1500);
+  });
+}
+document.addEventListener('keydown', e => {
+  if (['INPUT', 'TEXTAREA', 'SELECT'].includes(e.target.tagName)) return;
+  if (e.key === 'a') document.querySelector('input[name="status"][value="validated"]').checked = true;
+  else if (e.key === 'r') document.querySelector('input[name="status"][value="rejected"]').checked = true;
+  else if (e.key === 's') { e.preventDefault(); document.querySelector('button[value="save"]').click(); }
+  else if (e.key === 'n') { e.preventDefault(); document.querySelector('button[value="save_next"]').click(); }
+});
+document.querySelectorAll('.star-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const puzzle = btn.dataset.puzzle;
+    const evalId = btn.dataset.evalId;
+    fetch(`/puzzle/${puzzle}/star`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({eval_id: evalId}),
+    })
+    .then(r => r.json())
+    .then(data => { btn.classList.toggle('starred', data.starred); });
+  });
+});
+</script>
+{% endblock %}
