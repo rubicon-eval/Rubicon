@@ -7,13 +7,12 @@
 <p align="center">
   <a href="https://rubicon-eval.github.io/">Project website</a> ·
   <a href="https://huggingface.co/datasets/ajirs/rubicon">Dataset on Hugging Face</a> ·
-  <a href="#quick-start">Quick start</a> ·
-  <a href="docs/PROVENANCE.md">Release provenance</a>
+  <a href="#quick-start">Quick start</a>
 </p>
 
 RUBICON evaluates whether language models recognize when their own earlier actions have made a task impossible to complete. Three visual puzzle environments turn irreversible choices into precisely defined state transitions, with symbolic oracles providing ground truth.
 
-**This repository is the public code release.** It includes puzzle engines, generators, renderers, evaluation runners, scoring, and a local inspection app. The original evaluation data and a viewer-ready version are hosted on [Hugging Face](https://huggingface.co/datasets/ajirs/rubicon).
+**This repository is the public code release.** It includes puzzle engines, generators, renderers, evaluation runners, scoring, and a local inspection app. The evaluation data and a viewer-ready version are hosted on [Hugging Face](https://huggingface.co/datasets/ajirs/rubicon).
 
 ## The benchmark at a glance
 
@@ -43,7 +42,7 @@ uv run python scripts/download_dataset.py
 uv run python scripts/validate_dataset.py
 ```
 
-Expected validation output: `2100` records, `600` images, `3` domains, `7` task variants. The download is checked against the source file hashes in `dataset-manifest.json`. An existing nonempty dataset directory is not overwritten.
+Expected validation output: `2100` records, `600` images, `3` domains, `7` task variants. The download is checked against the file hashes in `dataset-manifest.json`. An existing nonempty dataset directory is not overwritten.
 
 Without `uv`:
 
@@ -156,14 +155,8 @@ scripts/model_runs/      Main OpenAI-compatible runners
 scripts/                 Download, validation, evaluation and analysis tools
 verify/                  Local Flask inspection app
 tests/                   Offline release regression tests
-docs/                    Evaluation and provenance notes
+docs/                    Evaluation and reproducibility guide
 dataset-manifest.json    SHA-256 hashes of the original dataset files
 ```
-
-## Provenance and licensing
-
-Adapted from the [RUBICON ARR artifact](https://github.com/adnanqidwai/RUBICON_ARR), with development history in [sri-ja/hungary](https://github.com/sri-ja/hungary). Dataset prompts, ground truth, images, and puzzle mechanics are preserved. See [provenance](docs/PROVENANCE.md) for exact source commits and release changes.
-
-The source snapshots did not specify a reuse license. A license has not been assigned by this packaging update. Please contact the maintainers through [repository issues](https://github.com/rubicon-eval/Rubicon/issues) about reuse and citation details.
 
 <sub>The impossible-puzzle banner is conceptual AI-generated artwork; actual benchmark examples are shown on the project website and dataset viewer.</sub>

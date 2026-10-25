@@ -1,6 +1,4 @@
 {
-  "source_repository": "https://github.com/adnanqidwai/RUBICON_ARR",
-  "source_commit": "59bc3beb0511b0f873cd31cf19de54030ca2c82f",
   "files": {
     "dataset/dataset_chain_vault/build_stats.json": "e617b213e68808e1906d651e2a60b90335ac979971a9d64d287232320998b77f",
     "dataset/dataset_chain_vault/images/convergent_forks_6x6_2k_4d_seed17/initial.png": "ba359942cd20161f71f3493de48b414d6365e0186770ba00f19d896b88329a45",
