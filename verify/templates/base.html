@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}Puzzle Verifier{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <nav class="navbar">
+    <a href="{{ url_for('dashboard') }}" class="brand">Puzzle Verifier</a>
+    {% block nav_extra %}{% endblock %}
+  </nav>
+  <main class="container">
+    {% block content %}{% endblock %}
+  </main>
+  {# ── Lightbox overlay ── #}
+  <div class="lightbox" id="lightbox">
+    <img src="" alt="Expanded view" id="lightbox-img">
+  </div>
+  <script>
+  (function() {
+    const lb = document.getElementById('lightbox');
+    const lbImg = document.getElementById('lightbox-img');
+    document.addEventListener('click', e => {
+      const img = e.target.closest('.item-thumb img, .overview-image img');
+      if (img) { lbImg.src = img.src; lb.classList.add('active'); }
+    });
+    lb.addEventListener('click', () => lb.classList.remove('active'));
+    document.addEventListener('keydown', e => {
+      if (e.key === 'Escape') lb.classList.remove('active');
+    });
+  })();
+  </script>
+  {% block scripts %}{% endblock %}
+</body>
+</html>
