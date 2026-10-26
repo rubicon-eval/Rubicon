@@ -1,0 +1,4 @@
+include dataset-manifest.json
+recursive-include assets *.png
+recursive-include docs *.md
+include .env.example

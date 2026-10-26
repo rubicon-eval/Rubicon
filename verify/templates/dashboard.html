@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+{% block title %}Dashboard — Puzzle Verifier{% endblock %}
+
+{% block content %}
+<h1>Dashboard</h1>
+
+<!-- Stats bar -->
+<div class="stats-bar">
+  <div class="stat-box stat-total">
+    <div class="stat-num">{{ total }}</div>
+    <div class="stat-label">Total</div>
+  </div>
+  <div class="stat-box stat-validated">
+    <div class="stat-num">{{ validated }}</div>
+    <div class="stat-label">Validated</div>
+  </div>
+  <div class="stat-box stat-rejected">
+    <div class="stat-num">{{ rejected }}</div>
+    <div class="stat-label">Rejected</div>
+  </div>
+  <div class="stat-box stat-pending">
+    <div class="stat-num">{{ pending }}</div>
+    <div class="stat-label">Pending</div>
+  </div>
+  {% if avg_difficulty is not none %}
+  <div class="stat-box stat-difficulty">
+    <div class="stat-num">{{ avg_difficulty }}</div>
+    <div class="stat-label">Avg Difficulty</div>
+  </div>
+  {% endif %}
+</div>
+
+<!-- Filter buttons -->
+<div class="filter-bar">
+  <button class="filter-btn active" data-filter="all">All</button>
+  <button class="filter-btn" data-filter="pending">Pending</button>
+  <button class="filter-btn" data-filter="validated">Validated</button>
+  <button class="filter-btn" data-filter="rejected">Rejected</button>
+</div>
+
+<!-- Puzzle table -->
+{% set has_keys = namespace(v=false) %}
+{% set has_plates = namespace(v=false) %}
+{% set has_doors = namespace(v=false) %}
+{% set has_beacons = namespace(v=false) %}
+{% set has_zones = namespace(v=false) %}
+{% for p in puzzles %}
+  {% if p.metadata.get('num_keys') is not none %}{% set has_keys.v = true %}{% endif %}
+  {% if p.metadata.get('num_plates') is not none %}{% set has_plates.v = true %}{% endif %}
+  {% if p.metadata.get('num_doors') is not none %}{% set has_doors.v = true %}{% endif %}
+  {% if p.metadata.get('num_beacons') is not none %}{% set has_beacons.v = true %}{% endif %}
+  {% if p.metadata.get('num_zones') is not none %}{% set has_zones.v = true %}{% endif %}
+{% endfor %}
+<table class="puzzle-table">
+  <thead>
+    <tr>
+      <th>Puzzle</th>
+      <th>Template</th>
+      <th>Grid</th>
+      <th>Solution Len</th>
+      {% if has_keys.v %}<th>Keys</th>{% endif %}
+      {% if has_doors.v %}<th>Doors</th>{% endif %}
+      {% if has_plates.v %}<th>Plates</th>{% endif %}
+      {% if has_beacons.v %}<th>Beacons</th>{% endif %}
+      {% if has_zones.v %}<th>Zones</th>{% endif %}
+      <th># Eval Items</th>
+      <th>Status</th>
+      <th>Difficulty</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for p in puzzles %}
+    <tr class="puzzle-row" data-status="{{ p.status }}">
+      <td><a href="{{ url_for('puzzle_detail', puzzle_dir=p.dir) }}">{{ p.dir }}</a></td>
+      <td>{{ p.metadata.get('template_name', '—') }}</td>
+      <td>{{ p.metadata.get('grid_size', '—') }}</td>
+      <td>{{ p.metadata.get('solution_length', '—') }}</td>
+      {% if has_keys.v %}<td>{{ p.metadata.get('num_keys', '—') }}</td>{% endif %}
+      {% if has_doors.v %}<td>{{ p.metadata.get('num_doors', '—') }}</td>{% endif %}
+      {% if has_plates.v %}<td>{{ p.metadata.get('num_plates', '—') }}</td>{% endif %}
+      {% if has_beacons.v %}<td>{{ p.metadata.get('num_beacons', '—') }}</td>{% endif %}
+      {% if has_zones.v %}<td>{{ p.metadata.get('num_zones', '—') }}</td>{% endif %}
+      <td>{{ p.num_items }}</td>
+      <td><span class="badge badge-{{ p.status }}">{{ p.status }}</span></td>
+      <td>{{ p.difficulty if p.difficulty is not none else '—' }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.querySelectorAll('.filter-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    const filter = btn.dataset.filter;
+    document.querySelectorAll('.puzzle-row').forEach(row => {
+      row.hidden = filter !== 'all' && row.dataset.status !== filter;
+    });
+  });
+});
+</script>
+{% endblock %}
